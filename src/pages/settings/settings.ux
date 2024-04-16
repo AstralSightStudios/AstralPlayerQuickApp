@@ -20,7 +20,7 @@
             <text style="font-size: 30px; font-weight: bold; color: #FC5C5C">删除所有视频</text>
         </div>
     </div>
-    <div class="item" style="margin-top: 20px;">
+    <div class="item" style="margin-top: 20px;" @click="GoAbout()">
         <image src="/common/AboutApp.png" class="item-img"></image>
         <div class="item-text">
             <text style="font-size: 30px; font-weight: bold">关于应用</text>
@@ -37,6 +37,11 @@ import prompt from "@system.prompt"
     RouterBack(){
         console.log("clicked")
         router.back()
+    },
+    GoAbout(){
+        router.push({
+            uri: 'pages/about'
+        })
     },
     Logout(){
         storage.delete({

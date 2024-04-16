@@ -1,6 +1,6 @@
 <template>
   <div class="home-page">
-    <image class="top_logo" src="/common/AstralPlayerHomeLogo.png"></image>
+    <image class="top_logo" src="/common/AstralPlayerText.png"></image>
     <div class="feature" style="margin-top: 30px">
         <image class="feature_img" src="/common/icons8-backend-development-96.png"></image>
         <div class="feature-text">
