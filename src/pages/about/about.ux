@@ -34,7 +34,13 @@
 </template>
 
 <script>
- export default {}
+import router from "@system.router"
+ export default {
+    RouterBack(){
+        console.log("clicked")
+        router.back()
+    }
+ }
 </script>
 
 <style>
@@ -47,7 +53,6 @@
     align-items: center;
     justify-content: center;
     width: 100%;
-    position: absolute;
 }
 
 .app-name-ver-div{

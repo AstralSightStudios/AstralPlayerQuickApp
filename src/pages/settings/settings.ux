@@ -83,7 +83,6 @@ import prompt from "@system.prompt"
     align-items: center;
     justify-content: center;
     width: 100%;
-    position: absolute;
 }
 
 .item {
