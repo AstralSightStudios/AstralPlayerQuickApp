@@ -1,0 +1,151 @@
+<template>
+  <div class="login-page">
+    <text class="title">扫码登录</text>
+    <div class="qr_code">
+      <qrcode value={{qr_value}} show={{show_qr}} style="width: 90%; height: 90%"></qrcode>
+      <image style="position: absolute;" show={{show_loading}} src={{loading_img_src}}></image>
+    </div>
+    <text class="tips1">请前往</text>
+    <text class="tips2">dashboard.astralsight.space</text>
+    <text class="tips3">进行扫码</text>
+  </div>
+</template>
+
+<script>
+import fetch from "@system.fetch"
+import prompt from "@system.prompt"
+import router from "@system.router"
+import storage from "@system.storage"
+export default {
+  private: {
+    show_qr: false,
+    show_loading: true,
+    qr_value: "",
+    ServerURL: null,
+    pull_interval: null,
+    loading_img_src: "/common/loadingFrames/icons8-loading-1.png",
+    loading_img_index_num: 1
+  },
+  onInit(){
+    setInterval(() => {
+      if(this.loading_img_index_num > 28){
+        this.loading_img_index_num = 1
+      }
+      this.loading_img_src = "/common/loadingFrames/icons8-loading-" + this.loading_img_index_num + ".png"
+      this.loading_img_index_num++
+    },35)
+  },
+  onReady(){
+    router.clear()
+    this.ServerURL = this.$app.$def.ServerURL
+    fetch.fetch({
+      url: this.ServerURL + "api/v1/qrlogin/get_qr",
+      responseType: "json",
+      success: (data) => {
+        console.log(data)
+        if(data.data.success){
+          this.qr_value = data.data.data.QRKey
+          this.show_qr = true
+          this.show_loading = false
+          console.log("QRValue=" + this.qr_value)
+        }
+        else{
+          prompt.showToast({
+            message: "获取二维码时出错：" + data.data.message,
+            duration: 6000
+          })
+        }
+      },
+      fail: (data, code) => {
+        prompt.showToast({
+          message: "获取二维码时出错：" + data + " 错误代码：" + code,
+          duration: 6000
+        })
+      }
+    })
+
+    this.pull_interval = setInterval(() => {
+      if(this.qr_value != ""){
+        fetch.fetch({
+          url: this.ServerURL + "api/v1/qrlogin/qr_status/" + this.qr_value,
+          responseType: "json",
+          success: (data) => {
+            console.log(data)
+            if(data.data.success && data.data.message.toString().includes("已确认登录")){
+              storage.set({
+                key: "token",
+                value: data.data.data.token,
+                success: () => {
+                  storage.set({
+                    key: "username",
+                    value: data.data.data.username,
+                    success: () => {
+                      prompt.showToast({
+                        message: "登录成功",
+                      })
+                      setTimeout(() => {
+                        router.push({
+                          uri: "pages/home"
+                        })
+                      }, 1000)
+                    }
+                  })
+                }
+              })
+              clearInterval(this.pull_interval)
+            }
+          },
+          fail: (data, code) => {
+            prompt.showToast({
+              message: "拉取二维码状态时出错：" + data + " 错误代码：" + code,
+              duration: 6000
+            })
+          }
+        })
+      }
+      else{
+        console.log("qr_value legth is zero")
+      }
+    }, 1000)
+  }
+}
+</script>
+
+<style>
+.login-page {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  height: 100%;
+  position: absolute;
+  width: 100%;
+}
+
+.title {
+  font-size: 35px;
+  margin-top: 40px;
+  font-weight: bold;
+}
+
+.qr_code{
+  margin-top: 30px;
+  width: 50%;
+  height: 50%;
+  align-items: center;
+  justify-content: center;
+  border-radius: 5%;
+  background-color: white;
+}
+
+.tips1{
+  margin-top: 20px;
+  font-size: 26px;
+  font-weight: bold;
+}
+.tips2{
+  font-size: 20px;
+}
+.tips3{
+  font-size: 20px;
+}
+</style>

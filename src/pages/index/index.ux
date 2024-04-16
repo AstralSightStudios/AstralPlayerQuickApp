@@ -1,0 +1,51 @@
+<template>
+  <div class="index-page">
+    <image src="/common/logo.png" class="splashimg"></image>
+  </div>
+</template>
+
+<script>
+import router from "@system.router"
+import storage from "@system.storage"
+
+export default{
+  onReady(){
+    setTimeout(async() => {
+      console.log("登录判定")
+
+      storage.get({
+        key: "token",
+        success: (token) => {
+          storage.get({
+            key: "username",
+            success: (username) => {
+              if(token.length != 0 && username.length != 0){
+                console.log("进入主页")
+                router.push({
+                  uri: 'pages/home'
+                })
+              }
+              else{
+                console.log("进入登录页")
+                router.push({
+                  uri: "pages/login"
+                })
+              }
+            }
+          })
+        }
+      })
+    },1000)
+  }
+}
+</script>
+
+<style>
+.index-page {
+  justify-content: center;
+  align-items: center;
+}
+.splashimg{
+  border-radius: 100%;
+}
+</style>

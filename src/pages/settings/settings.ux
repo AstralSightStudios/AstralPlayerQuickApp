@@ -1,0 +1,115 @@
+<template>
+  <div class="settings-page">
+    <div class="titlebar" @click="RouterBack()">
+        <div style="width: 40px; height: 40px">
+            <image src="/common/icons8-back-100.png" style="width: 40px; height: 40px"></image>
+        </div>
+        <div class="titlebar-text">
+            <text style="font-size: 40px; font-weight: bold">设置</text>
+        </div>
+    </div>
+    <div class="item" style="margin-top: 40px;" @click="Logout()">
+        <image src="/common/Logout.png" class="item-img"></image>
+        <div class="item-text">
+            <text style="font-size: 30px; font-weight: bold">退出登录</text>
+        </div>
+    </div>
+    <div class="item" style="margin-top: 20px;">
+        <image src="/common/RemoveALL.png" class="item-img"></image>
+        <div class="item-text">
+            <text style="font-size: 30px; font-weight: bold; color: #FC5C5C">删除所有视频</text>
+        </div>
+    </div>
+    <div class="item" style="margin-top: 20px;">
+        <image src="/common/AboutApp.png" class="item-img"></image>
+        <div class="item-text">
+            <text style="font-size: 30px; font-weight: bold">关于应用</text>
+        </div>
+    </div>
+  </div>
+</template>
+
+<script>
+import router from '@system.router'
+import storage from "@system.storage"
+import prompt from "@system.prompt"
+ export default {
+    RouterBack(){
+        console.log("clicked")
+        router.back()
+    },
+    Logout(){
+        storage.delete({
+            key: "token",
+            success: () => {
+                storage.delete({
+                    key: "username",
+                    success: () => {
+                        router.push({
+                            uri: "pages/index"
+                        })
+                    },
+                    fail: (data, code) => {
+                        prompt.showToast({
+                            message: "删除Username时出错：" + data + " 错误代码：" + code,
+                            duration: 6000
+                        })
+                    }
+                })
+            },
+            fail: (data, code) => {
+                prompt.showToast({
+                    message: "删除Token时出错：" + data + " 错误代码：" + code,
+                    duration: 6000
+                })
+            }
+        })
+    }
+ }
+</script>
+
+<style>
+.titlebar {
+    width: 55%;
+    margin-top: 45px;
+    align-items: center;
+}
+.titlebar-text {
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    position: absolute;
+}
+
+.item {
+    width: 64%;
+    background-color: #333333;
+    border-radius: 60px;
+    height: 77px;
+    flex-direction: row;
+    align-items: center;
+}
+
+.item-text {
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+}
+
+.item-img {
+    min-width: 40px; 
+    min-height: 40px; 
+    max-width: 40px; 
+    max-height: 40px; 
+    margin-left: 35px
+}
+
+.settings-page {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    height: 100%;
+    position: absolute;
+    width: 100%;
+}
+</style>
