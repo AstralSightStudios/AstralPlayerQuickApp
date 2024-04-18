@@ -14,15 +14,15 @@
     </div>
     <text style="font-size: 35px; font-weight: bold; margin-top: 27px">参与开发的人员</text>
     <div class="developers-div" style="margin-top: 13px;">
-        <div class="developer">
+        <div class="developer" style="margin-left: 15px;">
             <image src="/common/code.png" style="margin-left: 24px;"></image>
-            <div class="developer-name">
+            <div class="developer-name" style="margin-left: 25px;">
                 <text style="font-size: 35px; font-weight: bold">@Searchstars</text>
             </div>
         </div>
-        <div class="developer" style="margin-top: 10px;">
+        <div class="developer" style="margin-top: 10px;  margin-left: 15px;">
             <image src="/common/brush.png" style="margin-left: 24px;"></image>
-            <div class="developer-name">
+            <div class="developer-name" style="margin-left: 25px;">
                 <text style="font-size: 35px; font-weight: bold">@RX79XT</text>
             </div>
         </div>
@@ -83,7 +83,6 @@ import router from "@system.router"
 
 .developer-name {
     align-items: center;
-    justify-content: center;
     width: 100%;
 }
 

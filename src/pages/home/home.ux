@@ -1,7 +1,7 @@
 <template>
   <div class="home-page">
     <image class="top_logo" src="/common/AstralPlayerText.png"></image>
-    <div class="feature" style="margin-top: 30px">
+    <div class="feature" style="margin-top: 30px" @click="GoDecoder">
         <image class="feature_img" src="/common/icons8-backend-development-96.png"></image>
         <div class="feature-text">
             <text class="feature-text-content">解码视频</text>
@@ -26,6 +26,8 @@
 
 <script>
 import router from "@system.router"
+import file from "@system.file"
+import prompt from "@system.prompt"
  export default {
     onInit(){
         router.clear()
@@ -33,6 +35,43 @@ import router from "@system.router"
     GoSettings(){
         router.push({
             uri: "pages/settings"
+        })
+    },
+    GoDecoder(){
+        file.readText({
+            uri: "internal://files/installed",
+            success: (data) => {
+                var text = data.text
+                if (text == "wait_copy"){
+                    router.push({
+                        uri: "pages/error",
+                        params: {
+                            TitleBarText: "解码错误",
+                            ErrorText: "无法读取清单\n\n无法读取来自表盘的清单文件，请确保已在【保持此快应用在后台运行】的情况下在表盘中选择并复制你所需的清单文件！"
+                        }
+                    })
+                }
+                else{
+                    try{
+                        JSON.parse(text)
+                    }
+                    catch (ex){
+                        router.push({
+                            uri: "pages/error",
+                            params: {
+                                TitleBarText: "解码错误",
+                                ErrorText: "无法序列化清单\n\n无法序列化来自表盘的清单文件，此清单文件已损坏或不符合格式要求。请确保已在【保持此快应用在后台运行】的情况下重新在表盘中选择并复制你所需的清单文件！\nJson Exception Catch: " + ex.toString()
+                            }
+                        })
+                    }
+                }
+            },
+            fail: (data, code) => {
+                prompt.showToast({
+                    message: "读取installed文件失败，无法与表盘通信。错误信息：" + data + " 错误代码：" + code,
+                    duration: 6000
+                })
+            }
         })
     }
  }

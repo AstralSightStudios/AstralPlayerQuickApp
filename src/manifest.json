@@ -11,11 +11,20 @@
   "features": [
     {
       "name": "system.router"
+    },
+    {
+      "name": "system.file"
     }
   ],
   "config": {
     "logLevel": "log",
-    "designWidth": 480
+    "designWidth": 480,
+    "background": {
+      "features": [
+        "system.audio",
+        "system.request"
+      ]
+    }
   },
   "router": {
     "entry": "pages/index",
@@ -34,6 +43,15 @@
       },
       "pages/about": {
         "component": "about"
+      },
+      "pages/debug": {
+        "component": "debug"
+      },
+      "pages/error": {
+        "component": "error"
+      },
+      "pages/decoder": {
+        "component": "decoder"
       }
     }
   },

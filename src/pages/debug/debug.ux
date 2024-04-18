@@ -1,0 +1,103 @@
+<template>
+  <div class="debug-page">
+    <div class="titlebar" @click="RouterBack()">
+        <div style="width: 40px; height: 40px">
+            <image src="/common/icons8-back-100.png" style="width: 40px; height: 40px"></image>
+        </div>
+        <div class="titlebar-text">
+            <text style="font-size: 40px; font-weight: bold">Debug</text>
+        </div>
+    </div>
+    <input type="button" value="释放测试Dec文件" style="margin-top: 40px; width: 400px" @click="TestDec()"></input>
+    <input type="button" value="释放测试清单文件" style="margin-top: 20px; width: 400px" @click="TestManifest()"></input>
+    <input type="button" value="删除installed与play" style="margin-top: 20px; width: 400px" @click="RemoveInstalledAndPlay()"></input>
+  </div>
+</template>
+
+<script>
+import router from '@system.router'
+import file from '@system.file'
+import prompt from '@system.prompt'
+ export default {
+    RouterBack(){
+        console.log("clicked")
+        router.back()
+    },
+    RemoveInstalledAndPlay(){
+        file.delete({
+            uri: "internal://files/installed",
+            success: () => {
+                file.delete({
+                    uri: "internal://files/play",
+                    success: () => {
+                        prompt.showToast({
+                            message: "删除成功，请重启快应用"
+                        })
+                    }
+                })
+            }
+        })
+    },
+    TestDec(){
+        var decJson = {
+            "formatVersion": 0,
+            "width": 480,
+            "height": 320,
+            "fps": 15,
+            "frame": 641,
+            "pic_format": "png",
+            "pics": "vid/test/output_"
+        }
+        file.writeText({
+            uri: "internal://files/testVid.asplayerdec",
+            text: JSON.stringify(decJson),
+            success: () => {
+                prompt.showToast({
+                    message: "释放成功"
+                })
+            }
+        })
+    },
+    TestManifest(){
+        var mfJson = {
+            "video_title": "测试视频",
+            "video_url": "http://vjs.zencdn.net/v/oceans.mp4",
+            "require_fps": 12,
+            "require_format": "jpg",
+            "require_res_width": 480,
+            "require_res_height": 320
+        }
+        file.writeText({
+            uri: "internal://files/testVidaaas.asplayerlist",
+            text: JSON.stringify(mfJson),
+            success: () => {
+                prompt.showToast({
+                    message: "释放成功"
+                })
+            }
+        })
+    }
+ }
+</script>
+
+<style>
+.titlebar {
+    width: 55%;
+    margin-top: 45px;
+    align-items: center;
+}
+.titlebar-text {
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+}
+
+.debug-page {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    height: 100%;
+    position: absolute;
+    width: 100%;
+}
+</style>

@@ -26,6 +26,12 @@
             <text style="font-size: 30px; font-weight: bold">关于应用</text>
         </div>
     </div>
+    <div class="item" style="margin-top: 20px;" @click="GoDebug()">
+        <div class="item-text">
+            <text style="font-size: 30px; font-weight: bold">Debug Options</text>
+        </div>
+    </div>
+    <text style="margin-top: 20px;"> </text>
   </div>
 </template>
 
@@ -41,6 +47,11 @@ import prompt from "@system.prompt"
     GoAbout(){
         router.push({
             uri: 'pages/about'
+        })
+    },
+    GoDebug(){
+        router.push({
+            uri: 'pages/debug'
         })
     },
     Logout(){

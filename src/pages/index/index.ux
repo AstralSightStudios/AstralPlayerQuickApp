@@ -7,10 +7,26 @@
 <script>
 import router from "@system.router"
 import storage from "@system.storage"
+import file from "@system.file"
+import prompt from "@system.prompt"
 
 export default{
   onReady(){
+    file.writeText({
+      uri: 'internal://files/installed',
+      text: "wait_copy",
+      success: () => {
+        console.log("ok")
+      },
+      fail: (data,code) => {
+        prompt.showToast({
+          message: "初始化快应用失败，表盘将无法检测到该快应用的存在，请检查设备兼容性",
+          duration: 6000
+        })
+      }
+    })
     setTimeout(async() => {
+
       console.log("登录判定")
 
       storage.get({
