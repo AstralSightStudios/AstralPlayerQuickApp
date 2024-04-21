@@ -1,0 +1,335 @@
+<template>
+  <div class="download-page">
+    <div class="titlebar" @click="RouterBack()">
+        <div style="width: 40px; height: 40px">
+            <image src="/common/icons8-back-100.png" style="width: 40px; height: 40px"></image>
+        </div>
+        <div class="titlebar-text">
+            <text style="font-size: 40px; font-weight: bold">下载视频</text>
+        </div>
+    </div>
+    <image style="margin-top: 55px; width: 80px" src={{downloading_anim_img_src}}></image>
+    <slider style="margin-top: 35px; width: 65%; block-color: rgba(1,1,1,0)" @change="SliderChange()" value={{view_downloaded_frames}} max={{frames_to_download}}></slider>
+    <text class="normal_text" style="margin-top: 40px;">正在下载视频序列帧</text>
+    <text class="normal_text" style="margin-top: 10px;" if="show_down_num">{{downloaded_frames}} / {{frames_to_download}}</text>
+    <text class="normal_text" style="margin-top: 10px;" if="show_downloading_audio_tips">正在下载音频...</text>
+  </div>
+</template>
+
+<script>
+import router from "@system.router"
+import fetch from "@system.fetch"
+import storage from "@system.storage"
+import file from "@system.file"
+ export default {
+    public: {
+        decode_token: "91200ccc-80de-45d8-8105-6cb55c9381a2",
+        format: "",
+        fps: "",
+        w: 0,
+        h: 0,
+        videotitle: ""
+    },
+    private: {
+        // 下载动画interval
+        // 剩下的不多说
+        downloading_anim: null,
+        downloading_anim_img_src: "/common/downloadingFrames/icons8-downloading-1.png",
+        downloading_anim_index_num: 1,
+        downloading_anim_frame_count: 28,
+        downloading_anim_loop: true,
+        downloading_anim_src_header: "/common/downloadingFrames/icons8-downloading-",
+        username: "",
+        token: "",
+        // 与UI绑定的已下载帧数显示变量
+        // 每帧下载完后与downloaded_frames同步
+        // 主要防止有小傻逼拉slider导致值更改
+        view_downloaded_frames: 0,
+        downloaded_frames: 0,
+        frames_to_download: 100,
+        // 是否显示下载帧数量以及需要下载的帧数量（即 1/100 这种）
+        show_down_num: true,
+        // 这个你自己能看懂
+        show_downloading_audio_tips: false,
+        /* 
+            Base64转Uint8Array，调用全局引入的base64.js
+        */
+        base64ToUint8Array(base64) {
+            /*
+            // 使用自定义的解码函数将 Base64 字符串转换为 Uint8Array
+            return this.decodeBase64(base64).buffer;
+            */
+            var binary_string = this.$app.$def.base64.atob(base64);
+            var len = binary_string.length;
+            var bytes = new Uint8Array(len);
+            for (var i = 0; i < len; i++) {
+                bytes[i] = binary_string.charCodeAt(i);
+            }
+            return bytes;
+        },
+        async nowDownload(down_url) {
+            console.log("start download");
+            const concurrentLimit = 5; // 并发限制
+            let activeDownloads = 0; // 当前活跃的下载数量
+            const downloadPromises = []; // 存储所有下载任务的Promise数组
+
+            /*
+                并发下载主要部分
+                建立for循环，循环frameNumber到frames_to_download，在此期间根据限制创建promise并并行执行
+                虽然说并发5个下载，但由于S3的蓝牙联网速度还是慢，故最高只能达到1秒下载3帧图片
+                ESIM版速度快2倍左右
+            */
+            for (let frameNumber = 1; frameNumber <= this.frames_to_download; frameNumber++) {
+                if (activeDownloads < concurrentLimit) {
+                    activeDownloads++;
+                    const fetchurl = down_url + "output_" + frameNumber + "." + this.format;
+                    /*
+                        你可能会问：
+                        明明fetch.fetch支持设置responseType为arrayBuffer，
+                        这样直接以这个buffer创建一个Unit8Array直接写入就行了啊！
+                        为什么还要让服务器返回base64，客户端接受base64文本，再转换成Unit8Array呢？
+                        我一开始也是这么想的
+                        但是发现这样写入文件后文件大小全部是0
+                        并且对下载速度提升并不大
+                        就这样写得了
+                    */
+                    const downloadPromise = fetch.fetch({
+                        url: fetchurl,
+                        responseType: "text"
+                    }).then(ret => {
+                        const arraybuffer_write = this.base64ToUint8Array(ret.data.data);
+                        // 其实这个判断它是不是Uint8Array并没有意义
+                        // Base64转码出错的概率约等于零
+                        // 除非服务器爆炸
+                        if (arraybuffer_write instanceof Uint8Array) {
+                            return file.writeArrayBuffer({
+                                uri: `internal://files/vid/${this.decode_token}/output_${frameNumber}.${this.format}`,
+                                buffer: arraybuffer_write,
+                                success: () => {
+                                    this.downloaded_frames = frameNumber;
+                                    this.view_downloaded_frames = frameNumber; // 更新UI显示进度
+                                    activeDownloads--; // 完成一个下载，活跃数减一
+                                },
+                                fail: (data, code) => {
+                                    console.error(`Failed to write file for frame ${frameNumber}: ${data} ${code}`);
+                                    activeDownloads--; // 活跃数减一
+                                }
+                            });
+                        } else {
+                            console.error("The provided data is not an Uint8Array.");
+                            activeDownloads--;
+                        }
+                    }).catch(error => {
+                        console.error(`Failed to fetch data for frame ${frameNumber}: ${error}`);
+                        activeDownloads--;
+                    });
+                    downloadPromises.push(downloadPromise); //丢fetch promise进promise队列
+                } else {
+                    // 如果达到并发限制，等待一会再继续
+                    await new Promise(resolve => setTimeout(resolve, 100)); // 等待100毫秒
+                    frameNumber--; // 重试当前帧
+                }
+            }
+
+            // 等待所有下载任务完成
+            await Promise.all(downloadPromises).then(async() => {
+                console.log('All downloads completed');
+                // 这里执行下载完成后的操作
+                await this.onAllDownloadsComplete(down_url);
+            });
+        },
+
+        async onAllDownloadsComplete(down_url) {
+            // 这里定义下载完成后想要执行的操作
+            console.log('All downloads are successfully completed. Proceeding with post-download operations.');
+
+            // 隐藏下载帧数显示，显示音频下载提示
+            // 由于fetch不支持显示进度，因此音频下载也没法显示进度
+            this.show_down_num = false
+            this.show_downloading_audio_tips = true
+
+            // 下载并保存音频
+            const fetchurl = down_url + "output_audio.mp3";
+            var ret = await fetch.fetch({
+                url: fetchurl,
+                responseType: "text"
+            })
+            const arraybuffer_write = this.base64ToUint8Array(ret.data.data);
+            file.writeArrayBuffer({
+                uri: `internal://files/vid/${this.decode_token}/output_audio.mp3`,
+                buffer: arraybuffer_write,
+                success: () => {
+                    // 这样代表一切都下载完了
+                    // 切success页
+                    router.replace({
+                        uri: "pages/success",
+                        params: {
+                            TitleBarText: "下载完毕",
+                            TipsText: "视频已下载完毕！\n请返回主页，在“视频管理”中即可播放！"
+                        }
+                    })
+                },
+                fail: (data, code) => {
+                    // 报错直接丢error页，不多逼逼
+                    router.replace({
+                        uri: "pages/error",
+                        params: {
+                            TitleBarText: "下载失败",
+                            ErrorText: "写入音乐文件时出错\n错误信息：" + data + " 错误代码：" + code
+                        }
+                    })
+                }
+            });
+        }
+    },
+    RouterBack() {
+        console.log("clicked")
+        router.back()
+    },
+    // 当slider被用户修改的时候改回去
+    SliderChange(progress, isFromUser){
+        if(isFromUser){
+            this.view_downloaded_frames = downloaded_frames
+        }
+    },
+    onInit(){
+        this.downloading_anim = setInterval(() => {
+            if((this.downloading_anim_index_num > this.downloading_anim_frame_count) && this.downloading_anim_loop){
+                this.downloading_anim_index_num = 1
+            }
+            if(this.downloading_anim_index_num <= this.downloading_anim_frame_count){
+                this.downloading_anim_img_src = this.downloading_anim_src_header + this.downloading_anim_index_num + ".png"
+                this.downloading_anim_index_num++
+            }
+        },35)
+
+        // 老惯例，从storage拿两大神器
+        storage.get({
+            key: "token",
+            success: (data) => {
+                this.token = data
+                console.log(data)
+            }
+        })
+        storage.get({
+            key: "username",
+            success: (data) => {
+                this.username = data
+                console.log(data)
+            }
+        })
+
+        // 下面的操作等1000ms才执行，因此也相当于给storage.get充足的时间了
+        // 就不需要嵌套写success里了
+        setTimeout(() => {
+            fetch.fetch({
+                url: this.$app.$def.ServerURL + `api/v1/decode/get_vid_down_info/${this.token}/${this.username}/${this.decode_token}`,
+                responseType: "json",
+                success: (data) => {
+                    console.log(data)
+                    if(data.code == 200){
+                        if(data.data.success){
+                            var RetDecJson = {
+                                "formatVersion": 0,
+                                "title": this.videotitle,
+                                "width": this.w,
+                                "height": this.h,
+                                "fps": this.fps,
+                                "frame": data.data.data.frame,
+                                "pic_format": this.format,
+                                "pics": `vid/${this.decode_token}/output_`
+                            }
+
+                            var frame_count = data.data.data.frame
+                            this.frames_to_download = frame_count
+                            var down_url = data.data.data.url
+
+                            console.log("begin mkdir")
+
+                            file.mkdir({
+                                uri: "internal://files/vid/" + this.decode_token,
+                                success: () => {
+                                    console.log("begin write asplayerdec")
+                                    file.writeText({
+                                        uri: "internal://files/" + this.decode_token + '.asplayerdec',
+                                        text: JSON.stringify(RetDecJson),
+                                        success: () => {
+                                            this.nowDownload(down_url)
+                                        },
+                                        fail: (data, code) => {
+                                            router.replace({
+                                                uri: "pages/error",
+                                                params: {
+                                                    TitleBarText: "系统错误",
+                                                    ErrorText: "无法创建以decode_token为名的AsPlayerDec文件，因此无法记录将要下载的帧序列，请报告这个问题。错误信息：" + data + " 错误代码：" + code
+                                                }
+                                            })
+                                        }
+                                    })
+                                },
+                                fail: (data, code) => {
+                                    router.replace({
+                                        uri: "pages/error",
+                                        params: {
+                                            TitleBarText: "系统错误",
+                                            ErrorText: "无法创建以decode_token为名的文件夹，因此无法存放将要下载的帧序列，请报告这个问题。错误信息：" + data + " 错误代码：" + code
+                                        }
+                                    })
+                                }
+                            })
+                        }
+                        else{
+                            clearInterval(this.downloading_anim)
+                            router.replace({
+                                uri: "pages/error",
+                                params: {
+                                    TitleBarText: "下载失败",
+                                    ErrorText: "尝试向服务端请求视频下载地址，服务端返回出现错误：" + data.data.message
+                                }
+                            })
+                        }
+                    }
+                    else{
+                        clearInterval(this.downloading_anim)
+                        router.replace({
+                            uri: "pages/error",
+                            params: {
+                                TitleBarText: "请求失败",
+                                ErrorText: "服务器并未返回预期的200代码，而是" + data.code + "代码，这可能意味着服务器挂了。如果许多人都遇到了这个问题，请联系我们；否则，请再试一遍"
+                            }
+                        })
+                    }
+                }
+            })
+        },1000)
+    }
+ }
+</script>
+
+<style>
+.titlebar {
+  width: 55%;
+  margin-top: 45px;
+  align-items: center;
+}
+.titlebar-text {
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+}
+
+.normal_text {
+    font-weight: bold;
+    font-size: 35px;
+    text-align: center;
+}
+
+.download-page {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  height: 100%;
+  position: absolute;
+  width: 100%;
+}
+</style>

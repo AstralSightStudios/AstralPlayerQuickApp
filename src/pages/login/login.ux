@@ -17,17 +17,21 @@ import prompt from "@system.prompt"
 import router from "@system.router"
 import storage from "@system.storage"
 export default {
+  public: {
+    login_expires: false
+  },
   private: {
     show_qr: false,
     show_loading: true,
     qr_value: "",
     ServerURL: null,
     pull_interval: null,
+    loading_anim: null,
     loading_img_src: "/common/loadingFrames/icons8-loading-1.png",
     loading_img_index_num: 1
   },
   onInit(){
-    setInterval(() => {
+    this.loading_anim = setInterval(() => {
       if(this.loading_img_index_num > 28){
         this.loading_img_index_num = 1
       }
@@ -38,6 +42,11 @@ export default {
   onReady(){
     router.clear()
     this.ServerURL = this.$app.$def.ServerURL
+    if(this.login_expires){
+      prompt.showToast({
+        message: "登录已过期，请重新登录"
+      })
+    }
     fetch.fetch({
       url: this.ServerURL + "api/v1/qrlogin/get_qr",
       responseType: "json",
@@ -48,6 +57,7 @@ export default {
           this.show_qr = true
           this.show_loading = false
           console.log("QRValue=" + this.qr_value)
+          clearInterval(this.loading_anim)
         }
         else{
           prompt.showToast({

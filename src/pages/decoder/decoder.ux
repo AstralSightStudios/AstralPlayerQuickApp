@@ -1,0 +1,155 @@
+<template>
+    <div class="decoder-page">
+        <div class="titlebar" @click="RouterBack()">
+            <div style="width: 40px; height: 40px">
+                <image src="/common/icons8-back-100.png" style="width: 40px; height: 40px"></image>
+            </div>
+            <div class="titlebar-text">
+                <text style="font-size: 40px; font-weight: bold">视频解码</text>
+            </div>
+        </div>
+        <text style="margin-top: 30px; font-size: 30px; font-weight: bold; width: 75%; text-align: center">
+            {{ videotitle }}
+        </text>
+        <text style="margin-top: 20px; font-size: 30px; font-weight: bold; width: 75%; text-align: center">
+            预期视频数据：{{ videowidth }}x{{ videoheight }}/{{ videofps }}
+        </text>
+        <text style="margin-top: 15px; font-size: 30px; font-weight: bold; width: 75%; text-align: center">
+            预期图片格式：{{ picformat }}
+        </text>
+        <div class="startbtn" style="margin-top: 35px" @click="StartDecode()">
+            <text class="startbtn-text">{{startbtn_text}}</text>
+        </div>
+        <text style="margin-top: 15px"></text>
+    </div>
+</template>
+
+<script>
+import router from "@system.router"
+import fetch from "@system.fetch"
+import storage from "@system.storage"
+import prompt from '@system.prompt'
+export default {
+  public: {
+    strasplayerlist: null
+  },
+  private: {
+    videotitle: "视频标题：\n未知",
+    videowidth: 480,
+    videoheight: 320,
+    videofps: 12,
+    picformat: "jpg",
+    token: "",
+    username: "",
+    AsPlayerList: null,
+    clicked_start: false,
+    startbtn_text: "开始解码"
+  },
+  RouterBack() {
+    console.log("clicked")
+    router.back()
+  },
+  StartDecode() {
+    if(!this.clicked_start){
+      this.clicked_start = true
+      this.startbtn_text = "请稍后..."
+      fetch.fetch({
+          url: this.$app.$def.ServerURL + `api/v1/decode/get/decode_video/${this.token}/${this.username}/manifest/${this.$app.$def.base64.encode(JSON.stringify(this.AsPlayerList))}/QuickAppDecode`,
+          responseType: "json",
+          success: (data) => {
+              console.log(data)
+              if(data.data.success && data.data.message.toString().includes("已开始解码")){
+                router.replace({
+                  uri: 'pages/decoding',
+                  params: {
+                    decode_token: data.data.data.token,
+                    format: this.picformat,
+                    fps: this.videofps,
+                    w: this.videowidth,
+                    h: this.videoheight,
+                    videotitle: this.videotitle
+                  }
+                })
+              }
+              else{
+                router.push({
+                  uri: "pages/error",
+                  params: {
+                    TitleBarText: "解码错误",
+                    ErrorText: data.data.message.toString()
+                  }
+                })
+              }
+          },
+          fail: (data, code) => {
+            prompt.showToast({
+              message: "Fetch错误，错误信息：" + data+ " 错误代码："  + code,
+              duration: 6000
+            })
+          }
+      })
+    }
+  },
+  onInit() {
+    console.log(this.strasplayerlist)
+    this.AsPlayerList = JSON.parse(this.strasplayerlist)
+
+    this.videotitle = "视频标题：\n" + this.AsPlayerList.video_title
+    this.videowidth = this.AsPlayerList.require_res_width
+    this.videoheight = this.AsPlayerList.require_res_height
+    this.videofps = this.AsPlayerList.require_fps
+    this.picformat = this.AsPlayerList.require_format
+
+    storage.get({
+      key: "token",
+      success: (data) => {
+        this.token = data
+        console.log(data)
+      }
+    })
+    storage.get({
+      key: "username",
+      success: (data) => {
+        this.username = data
+        console.log(data)
+      }
+    })
+  }
+}
+</script>
+
+<style>
+.titlebar {
+  width: 55%;
+  margin-top: 45px;
+  align-items: center;
+}
+.titlebar-text {
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+}
+
+.startbtn {
+  width: 51%;
+  height: 83px;
+  border-radius: 50px;
+  background-color: #0d7aff;
+  justify-content: center;
+  align-items: center;
+}
+.startbtn-text {
+  color: white;
+  font-size: 40px;
+  font-weight: bold;
+}
+
+.decoder-page {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  height: 100%;
+  position: absolute;
+  width: 100%;
+}
+</style>

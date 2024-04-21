@@ -1,0 +1,200 @@
+<template>
+  <div class="decoding-page">
+    <div class="titlebar" @click="RouterBack()">
+        <div style="width: 40px; height: 40px">
+            <image src="/common/icons8-back-100.png" style="width: 40px; height: 40px"></image>
+        </div>
+        <div class="titlebar-text">
+            <text style="font-size: 40px; font-weight: bold">解码中</text>
+        </div>
+    </div>
+    <image style="margin-top: 60px; width: 90px" src={{decoding_anim_img_src}}></image>
+    <text class="normal_text" style="margin-top: 50px;">{{tipstext}}</text>
+    <text class="normal_text" style="margin-top: 20px; font-size: 20px">{{tipstext2}}</text>
+    <text class="normal_text" style="margin-top: 20px; font-size: 20px">{{tipstext3}}</text>
+    <text style="margin-top: 30px"></text>
+  </div>
+</template>
+
+<script>
+import router from "@system.router"
+import fetch from "@system.fetch"
+import storage from "@system.storage"
+ export default {
+    public: {
+        decode_token: "1",
+        format: "",
+        fps: "",
+        w: 0,
+        h: 0,
+        videotitle: ""
+    },
+    private: {
+        decoding_anim: null,
+        decoding_anim_img_src: "/common/taskingFrames/icons8-tasking-1.png",
+        decoding_anim_index_num: 1,
+        decoding_anim_frame_count: 28,
+        decoding_anim_loop: true,
+        decoding_anim_src_header: "/common/taskingFrames/icons8-tasking-",
+        pull_status_interval: null,
+        token: "1",
+        username: "1",
+        tipstext: "视频正在解码",
+        tipstext2: "视频长度决定所需时间，平均在1分钟以内",
+        tipstext3: "若太久没解码成功，请联系我们"
+    },
+    RouterBack() {
+        console.log("clicked")
+        clearInterval(this.decoding_anim)
+        router.back()
+    },
+    onInit(){
+        this.decoding_anim = setInterval(() => {
+            if((this.decoding_anim_index_num > this.decoding_anim_frame_count) && this.decoding_anim_loop){
+                this.decoding_anim_index_num = 1
+            }
+            if(this.decoding_anim_index_num <= this.decoding_anim_frame_count){
+                this.decoding_anim_img_src = this.decoding_anim_src_header + this.decoding_anim_index_num + ".png"
+                this.decoding_anim_index_num++
+            }
+        },35)
+
+        storage.get({
+            key: "token",
+            success: (data) => {
+                this.token = data
+                console.log(data)
+            }
+        })
+        storage.get({
+            key: "username",
+            success: (data) => {
+                this.username = data
+                console.log(data)
+            }
+        })
+
+        storage.set({
+            key: "decoding",
+            value: this.decode_token
+        })
+
+        this.pull_status_interval = setInterval(() => {
+            fetch.fetch({
+                url: this.$app.$def.ServerURL + `api/v1/decode/status/is_video_get_decode_error/${this.token}/${this.username}/${this.decode_token}`,
+                responseType: 'json',
+                success: (data) => {
+                    console.log(data)
+                    if(data.code == 200){
+                        if(data.data.success){
+                            if(data.data.data.got_error){
+                                clearInterval(this.pull_status_interval)
+                                this.decoding_anim_index_num = 1
+                                this.decoding_anim_src_header = "/common/errorFrames/icons8-error-"
+                                this.decoding_anim_loop = false
+                                this.tipstext = "视频解码失败"
+                                this.tipstext2 = "此问题一般由提供清单的快应用造成"
+                                this.tipstext3 = "请联系快应用开发者或重新保存清单"
+                            }
+                        }
+                        else{
+                            if(data.data.message.toString().includes("Token")){
+                                clearInterval(this.decoding_anim)
+                                router.push({
+                                    uri: 'pages/login',
+                                    params: {
+                                        login_expires: true
+                                    }
+                                })
+                            }
+                        }
+                    }
+                    else{
+                        clearInterval(this.decoding_anim)
+                        router.replace({
+                            uri: "pages/error",
+                            params: {
+                                TitleBarText: "请求失败",
+                                ErrorText: "服务器并未返回预期的200代码，而是" + data.code + "代码，这可能意味着服务器挂了。如果许多人都遇到了这个问题，请联系我们；否则，请再试一遍"
+                            }
+                        })
+                    }
+                }
+            })
+            fetch.fetch({
+                url: this.$app.$def.ServerURL + `api/v1/decode/status/is_video_decoding/${this.token}/${this.username}`,
+                responseType: "json",
+                success: (data) => {
+                    console.log(data)
+                    if(data.code == 200){
+                        if(!data.data.data.decoding){
+                            clearInterval(this.pull_status_interval)
+                            this.decoding_anim_index_num = 1
+                            this.decoding_anim_src_header = "/common/successFrames/icons8-success-"
+                            this.decoding_anim_loop = false
+                            this.tipstext = "视频解码完毕"
+                            this.tipstext2 = "请等待，3秒后将自动开始下载"
+                            this.tipstext3 = "下载过程中可挂后台"
+                            storage.delete({
+                                key: "decoding"
+                            })
+                            setTimeout(() => {
+                                clearInterval(this.decoding_anim)
+                                router.replace({
+                                    uri: "pages/download",
+                                    params: {
+                                        decode_token: this.decode_token,
+                                        format: this.format,
+                                        fps: this.fps,
+                                        w: this.w,
+                                        h: this.h,
+                                        videotitle: this.videotitle
+                                    }
+                                })
+                            },3000)
+                        }
+                    }
+                    else{
+                        clearInterval(this.decoding_anim)
+                        router.replace({
+                            uri: "pages/error",
+                            params: {
+                                TitleBarText: "请求失败",
+                                ErrorText: "服务器并未返回预期的200代码，而是" + data.code + "代码，这可能意味着服务器挂了。如果许多人都遇到了这个问题，请联系我们；否则，请再试一遍"
+                            }
+                        })
+                    }
+                }
+            })
+        }, 1000)
+    }
+ }
+</script>
+
+<style>
+.titlebar {
+  width: 55%;
+  margin-top: 45px;
+  align-items: center;
+}
+.titlebar-text {
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+}
+
+.normal_text {
+    font-weight: bold;
+    font-size: 35px;
+    text-align: center;
+}
+
+.decoding-page {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  height: 100%;
+  position: absolute;
+  width: 100%;
+}
+</style>

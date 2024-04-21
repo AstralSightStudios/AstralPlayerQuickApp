@@ -28,6 +28,7 @@
 import router from "@system.router"
 import file from "@system.file"
 import prompt from "@system.prompt"
+import storage from "@system.storage"
  export default {
     onInit(){
         router.clear()
@@ -37,7 +38,7 @@ import prompt from "@system.prompt"
             uri: "pages/settings"
         })
     },
-    GoDecoder(){
+    async GoDecoder(){
         file.readText({
             uri: "internal://files/installed",
             success: (data) => {
@@ -64,6 +65,28 @@ import prompt from "@system.prompt"
                             }
                         })
                     }
+                    storage.get({
+                        key: "decoding",
+                        success: (storage_data) => {
+                            if(storage_data.length > 0){
+                                router.push({
+                                    uri: 'pages/decoding',
+                                    params: {
+                                        decode_token: storage_data
+                                    }
+                                })
+                            }
+                            else{
+                                console.log(data.text)
+                                router.push({
+                                    uri: "pages/decoder",
+                                    params: {
+                                        strasplayerlist: data.text
+                                    }
+                                })
+                            }
+                        }
+                    })
                 }
             },
             fail: (data, code) => {

@@ -1,6 +1,7 @@
 <script>
-
+import * as _base64 from "./base64"
 export default {
+  base64: _base64,
   ServerURL: "https://localdebugapi-player.astralsight.space/",
   onCreate() {
     console.log("app created")

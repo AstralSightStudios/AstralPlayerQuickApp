@@ -25,6 +25,27 @@ export default{
         })
       }
     })
+    file.access({
+      uri: "internal://files/vid",
+      success: () => {
+        console.log("vid文件夹存在")
+      },
+      fail: (data, code) => {
+        console.log("vid文件夹不存在，创建")
+        file.mkdir({
+          uri: "internal://files/vid",
+          success: () => {
+            console.log("初始化成功")
+          },
+          fail: (data, code) => {
+            prompt.showToast({
+              message: "创建vid文件夹失败，错误信息：" + data + " 错误代码：" + code,
+              duration: 6000
+            })
+          }
+        })
+      }
+    })
     setTimeout(async() => {
 
       console.log("登录判定")
