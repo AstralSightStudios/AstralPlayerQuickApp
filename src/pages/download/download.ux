@@ -10,9 +10,8 @@
     </div>
     <image style="margin-top: 55px; width: 80px" src={{downloading_anim_img_src}}></image>
     <slider style="margin-top: 35px; width: 65%; block-color: rgba(1,1,1,0)" @change="SliderChange()" value={{view_downloaded_frames}} max={{frames_to_download}}></slider>
-    <text class="normal_text" style="margin-top: 40px;">正在下载视频序列帧</text>
+    <text class="normal_text" style="margin-top: 40px;">{{down_tips_text}}</text>
     <text class="normal_text" style="margin-top: 10px;" if="show_down_num">{{downloaded_frames}} / {{frames_to_download}}</text>
-    <text class="normal_text" style="margin-top: 10px;" if="show_downloading_audio_tips">正在下载音频...</text>
   </div>
 </template>
 
@@ -21,6 +20,7 @@ import router from "@system.router"
 import fetch from "@system.fetch"
 import storage from "@system.storage"
 import file from "@system.file"
+import request from "@system.request"
  export default {
     public: {
         decode_token: "91200ccc-80de-45d8-8105-6cb55c9381a2",
@@ -50,7 +50,7 @@ import file from "@system.file"
         // 是否显示下载帧数量以及需要下载的帧数量（即 1/100 这种）
         show_down_num: true,
         // 这个你自己能看懂
-        show_downloading_audio_tips: false,
+        down_tips_text: "正在下载视频序列帧",
         /* 
             Base64转Uint8Array，调用全局引入的base64.js
         */
@@ -72,6 +72,8 @@ import file from "@system.file"
             const concurrentLimit = 5; // 并发限制
             let activeDownloads = 0; // 当前活跃的下载数量
             const downloadPromises = []; // 存储所有下载任务的Promise数组
+
+            //this.frames_to_download = 2; // 测试音频下载时取消注释
 
             /*
                 并发下载主要部分
@@ -143,29 +145,53 @@ import file from "@system.file"
             // 这里定义下载完成后想要执行的操作
             console.log('All downloads are successfully completed. Proceeding with post-download operations.');
 
-            // 隐藏下载帧数显示，显示音频下载提示
+            // 隐藏下载帧数显示
             // 由于fetch不支持显示进度，因此音频下载也没法显示进度
             this.show_down_num = false
-            this.show_downloading_audio_tips = true
+            this.down_tips_text = "正在下载音频..."
 
             // 下载并保存音频
             const fetchurl = down_url + "output_audio.mp3";
-            var ret = await fetch.fetch({
+            request.download({
                 url: fetchurl,
-                responseType: "text"
-            })
-            const arraybuffer_write = this.base64ToUint8Array(ret.data.data);
-            file.writeArrayBuffer({
-                uri: `internal://files/vid/${this.decode_token}/output_audio.mp3`,
-                buffer: arraybuffer_write,
-                success: () => {
-                    // 这样代表一切都下载完了
-                    // 切success页
-                    router.replace({
-                        uri: "pages/success",
-                        params: {
-                            TitleBarText: "下载完毕",
-                            TipsText: "视频已下载完毕！\n请返回主页，在“视频管理”中即可播放！"
+                success: (down_data) => {
+                    request.onDownloadComplete({
+                        token: down_data.token,
+                        success: (uri_data) => {
+                            file.move({
+                                srcUri: uri_data.uri,
+                                dstUri: `internal://files/vid/${this.decode_token}/output_audio.mp3`,
+                                success: function(uri) {
+                                    console.log(`move success: ${uri}`)
+                                    router.replace({
+                                        uri: "pages/success",
+                                        params: {
+                                            TitleBarText: "下载完毕",
+                                            TipsText: "视频已下载完毕！\n请返回主页，在“视频管理”中即可播放！"
+                                        }
+                                    })
+                                },
+                                fail: function(data, code) {
+                                    console.log(`handling fail, code = ${code}`)
+                                    router.replace({
+                                        uri: "pages/error",
+                                        params: {
+                                            TitleBarText: "下载失败",
+                                            ErrorText: "移动音频到目标文件夹时出错\n错误信息：" + data + " 错误代码：" + code
+                                        }
+                                    })
+                                }
+                            })
+                        },
+                        fail: (data, code) => {
+                            // 报错直接丢error页，不多逼逼
+                            router.replace({
+                                uri: "pages/error",
+                                params: {
+                                    TitleBarText: "下载失败",
+                                    ErrorText: "监听音频下载状态时出错\n错误信息：" + data + " 错误代码：" + code
+                                }
+                            })
                         }
                     })
                 },
@@ -175,11 +201,11 @@ import file from "@system.file"
                         uri: "pages/error",
                         params: {
                             TitleBarText: "下载失败",
-                            ErrorText: "写入音乐文件时出错\n错误信息：" + data + " 错误代码：" + code
+                            ErrorText: "创建音频下载任务时出错\n错误信息：" + data + " 错误代码：" + code
                         }
                     })
                 }
-            });
+            })
         }
     },
     RouterBack() {
