@@ -69,75 +69,87 @@ import request from "@system.request"
         },
         async nowDownload(down_url) {
             console.log("start download");
-            const concurrentLimit = 5; // 并发限制
+            const concurrentLimit = 10; // 并发限制
             let activeDownloads = 0; // 当前活跃的下载数量
             const downloadPromises = []; // 存储所有下载任务的Promise数组
 
-            //this.frames_to_download = 2; // 测试音频下载时取消注释
+            this.frames_to_download = 10; // 测试音频下载时取消注释
 
-            /*
-                并发下载主要部分
-                建立for循环，循环frameNumber到frames_to_download，在此期间根据限制创建promise并并行执行
-                虽然说并发5个下载，但由于S3的蓝牙联网速度还是慢，故最高只能达到1秒下载3帧图片
-                ESIM版速度快2倍左右
-            */
             for (let frameNumber = 1; frameNumber <= this.frames_to_download; frameNumber++) {
                 if (activeDownloads < concurrentLimit) {
-                    activeDownloads++;
                     const fetchurl = down_url + "output_" + frameNumber + "." + this.format;
-                    /*
-                        你可能会问：
-                        明明fetch.fetch支持设置responseType为arrayBuffer，
-                        这样直接以这个buffer创建一个Unit8Array直接写入就行了啊！
-                        为什么还要让服务器返回base64，客户端接受base64文本，再转换成Unit8Array呢？
-                        我一开始也是这么想的
-                        但是发现这样写入文件后文件大小全部是0
-                        并且对下载速度提升并不大
-                        就这样写得了
-                    */
-                    const downloadPromise = fetch.fetch({
-                        url: fetchurl,
-                        responseType: "text"
-                    }).then(ret => {
-                        const arraybuffer_write = this.base64ToUint8Array(ret.data.data);
-                        // 其实这个判断它是不是Uint8Array并没有意义
-                        // Base64转码出错的概率约等于零
-                        // 除非服务器爆炸
-                        if (arraybuffer_write instanceof Uint8Array) {
-                            return file.writeArrayBuffer({
-                                uri: `internal://files/vid/${this.decode_token}/output_${frameNumber}.${this.format}`,
-                                buffer: arraybuffer_write,
-                                success: () => {
-                                    this.downloaded_frames = frameNumber;
-                                    this.view_downloaded_frames = frameNumber; // 更新UI显示进度
-                                    activeDownloads--; // 完成一个下载，活跃数减一
-                                },
-                                fail: (data, code) => {
-                                    console.error(`Failed to write file for frame ${frameNumber}: ${data} ${code}`);
-                                    activeDownloads--; // 活跃数减一
-                                }
-                            });
-                        } else {
-                            console.error("The provided data is not an Uint8Array.");
-                            activeDownloads--;
-                        }
-                    }).catch(error => {
-                        console.error(`Failed to fetch data for frame ${frameNumber}: ${error}`);
-                        activeDownloads--;
+                    const downloadPromise = new Promise((resolve, reject) => {
+                        request.download({
+                            url: fetchurl,
+                            success: (down_data) => {
+                                request.onDownloadComplete({
+                                    token: down_data.token,
+                                    success: (uri_data) => {
+                                        file.readText({
+                                            uri: uri_data.uri,
+                                            success: (read_data) => {
+                                                //console.log(read_data)
+                                                try{
+                                                    const arraybuffer_write = this.base64ToUint8Array(read_data.text);
+                                                    file.writeArrayBuffer({
+                                                        uri: `internal://files/vid/${this.decode_token}/output_${frameNumber}.${this.format}`,
+                                                        buffer: arraybuffer_write,
+                                                        success: () => {
+                                                            file.delete({
+                                                                uri: uri_data.uri,
+                                                                success: () => {
+                                                                    console.log(`文件 ${frameNumber} 操作成功`);
+                                                                    this.downloaded_frames ++;
+                                                                    this.view_downloaded_frames = this.downloaded_frames
+                                                                    resolve();
+                                                                },
+                                                                fail: (data, code) => {
+                                                                    console.error(`删除文件失败: ${data} ${code}`);
+                                                                    reject(new Error(`删除文件失败: ${data} ${code}`));
+                                                                }
+                                                            })
+                                                        },
+                                                        fail: (data, code) => {
+                                                            console.error(`写入文件失败: ${data} ${code}`);
+                                                            reject(new Error(`写入文件失败: ${data} ${code}`));
+                                                        }
+                                                    });
+                                                }
+                                                catch(ex){
+                                                    console.error("ERROR When Readtext: " + ex)
+                                                }
+                                            }
+                                        })
+                                    },
+                                    fail: (data, code) => {
+                                        console.error(`监听下载状态失败: ${data} ${code}`);
+                                        reject(new Error(`监听下载状态失败: ${data} ${code}`));
+                                    }
+                                });
+                            },
+                            fail: (data, code) => {
+                                console.error(`创建下载任务失败: ${data} ${code}`);
+                                reject(new Error(`创建下载任务失败: ${data} ${code}`));
+                            }
+                        });
+                    }).finally(() => {
+                        activeDownloads--; // 确保无论成功或失败，都适时减少活跃下载数
                     });
-                    downloadPromises.push(downloadPromise); //丢fetch promise进promise队列
+                    activeDownloads++; // 增加活跃下载数
+                    downloadPromises.push(downloadPromise);
                 } else {
-                    // 如果达到并发限制，等待一会再继续
                     await new Promise(resolve => setTimeout(resolve, 100)); // 等待100毫秒
                     frameNumber--; // 重试当前帧
                 }
             }
 
             // 等待所有下载任务完成
-            await Promise.all(downloadPromises).then(async() => {
-                console.log('All downloads completed');
+            await Promise.all(downloadPromises).then(() => {
+                console.log('所有下载已完成');
                 // 这里执行下载完成后的操作
-                await this.onAllDownloadsComplete(down_url);
+                this.onAllDownloadsComplete(down_url)
+            }).catch(error => {
+                console.error('下载过程中出现错误:', error);
             });
         },
 
@@ -158,18 +170,53 @@ import request from "@system.request"
                     request.onDownloadComplete({
                         token: down_data.token,
                         success: (uri_data) => {
-                            file.move({
-                                srcUri: uri_data.uri,
-                                dstUri: `internal://files/vid/${this.decode_token}/output_audio.mp3`,
-                                success: function(uri) {
-                                    console.log(`move success: ${uri}`)
-                                    router.replace({
-                                        uri: "pages/success",
-                                        params: {
-                                            TitleBarText: "下载完毕",
-                                            TipsText: "视频已下载完毕！\n请返回主页，在“视频管理”中即可播放！"
-                                        }
-                                    })
+                            file.readText({
+                                uri: uri_data.uri,
+                                success: (read_data) => {
+                                    try{
+                                        console.log("BEGIN PARSE TO UINT8ARRAY")
+                                        const arraybuffer_write = this.base64ToUint8Array(read_data.text);
+                                        console.log("BEGIN WRITE ARRAYBUFFER")
+                                        file.writeArrayBuffer({
+                                            uri: `internal://files/vid/${this.decode_token}/output_audio.mp3`,
+                                            buffer: arraybuffer_write,
+                                            success: () => {
+                                                file.delete({
+                                                    uri: uri_data.uri,
+                                                    success: () => {
+                                                        router.replace({
+                                                            uri: "pages/success",
+                                                            params: {
+                                                                TitleBarText: "下载完毕",
+                                                                TipsText: "视频已下载完毕！\n请返回主页，在“视频管理”中即可播放！"
+                                                            }
+                                                        })
+                                                    },
+                                                    fail: (data, code) => {
+                                                        router.replace({
+                                                            uri: "pages/error",
+                                                            params: {
+                                                                TitleBarText: "下载失败",
+                                                                ErrorText: "删除音频缓存时出错\n错误信息：" + data + " 错误代码：" + code
+                                                            }
+                                                        })
+                                                    }
+                                                })
+                                            },
+                                            fail: (data, code) => {
+                                                router.replace({
+                                                    uri: "pages/error",
+                                                    params: {
+                                                        TitleBarText: "下载失败",
+                                                        ErrorText: "写入音频arraybuffer时出错\n错误信息：" + data + " 错误代码：" + code
+                                                    }
+                                                })
+                                            }
+                                        });
+                                    }
+                                    catch(ex){
+                                        console.error("ERROR When Readtext: " + ex)
+                                    }
                                 },
                                 fail: function(data, code) {
                                     console.log(`handling fail, code = ${code}`)
@@ -177,7 +224,7 @@ import request from "@system.request"
                                         uri: "pages/error",
                                         params: {
                                             TitleBarText: "下载失败",
-                                            ErrorText: "移动音频到目标文件夹时出错\n错误信息：" + data + " 错误代码：" + code
+                                            ErrorText: "读取音频base64时出错\n错误信息：" + data + " 错误代码：" + code
                                         }
                                     })
                                 }

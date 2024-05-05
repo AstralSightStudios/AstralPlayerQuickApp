@@ -1,0 +1,121 @@
+<template>
+  <div class="play-page">
+    <div class="titlebar" @click="RouterBack()">
+        <div style="width: 40px; height: 40px">
+            <image src="/common/icons8-back-100.png" style="width: 40px; height: 40px"></image>
+        </div>
+        <div class="titlebar-text">
+            <text style="font-size: 40px; font-weight: bold">播放视频</text>
+        </div>
+    </div>
+
+    <text style="margin-top: 130px; font-weight: bold; width: 85%; text-align: center">{{PlayTips}}</text>
+    <text style="margin-top: 60px; font-weight: bold; width: 85%; font-size: 12px; text-align: center">{{audio_uri}}</text>
+    <text style="margin-top: 35px; font-weight: bold; width: 85%; font-size: 16px; text-align: center">{{pandatatext}}</text>
+    <text style="margin-top: 35px; font-weight: bold; width: 85%; font-size: 16px; text-align: center">{{audio_time}}</text>
+  </div>
+</template>
+
+<script>
+import router from "@system.router"
+import file from "@system.file"
+import audio from "@system.audio"
+import prompt from "@system.prompt"
+export default {
+    public: {
+        audio_play_interval: null,
+        vid_uri: "",
+        dec_uri: "",
+        diruri: "",
+        audio_uri: "",
+        audio_time: 0,
+        pandatatext: "",
+        PlayTips: "请前往播放器表盘播放"
+    },
+    RouterBack(){
+        console.log("clicked")
+        router.back()
+    },
+    WriteDecToPlay(target_file_uri){
+        file.readText({
+            uri: target_file_uri,
+            success: (decfile) => {
+                console.log("DecFile内容：" + decfile.text);
+                file.writeText({
+                    uri: "internal://files/play",
+                    text: decfile.text,
+                    success: () => {
+                        console.log("写入成功");
+                        prompt.showToast({
+                            message: "Done!"
+                        });
+                    },
+                    fail: (data, code) => {
+                        prompt.showToast({
+                            message: "写入play出错：data=" + data + " code=" + code
+                        });
+                    }
+                });
+            },
+            fail: (data, code) => {
+                prompt.showToast({
+                    message: "读取asplayerdec出错：data=" + data + " code=" + code
+                });
+            }
+        });
+    },
+    onReady(){
+        this.diruri = "internal://files/" + this.vid_uri.split("output_")[0]
+        this.audio_uri = "internal://files/" + this.vid_uri + "audio.mp3"
+        this.WriteDecToPlay(this.dec_uri)
+        this.audio_play_interval = setInterval(() => {
+            file.readText({
+                uri: "internal://files/playaudionow",
+                success: (pan_data) => {
+                    this.pandatatext = pan_data.text
+                    if(pan_data.text != "WAIT"){
+                        console.log("PLAY AUDIO")
+                        audio.autoplay = true
+                        audio.src = this.audio_uri
+                        audio.play()
+                        audio.onloadeddata = () => {
+                            this.audio_time = audio.duration
+                        }
+                        audio.onplay = () => {
+                            this.PlayTips = "播放音频中，请返回表盘"
+                            this.audio_time = audio.duration
+                        }
+                        audio.onerror = () => {
+                            this.PlayTips = "播放错误"
+                        }
+                        clearInterval(this.audio_play_interval)
+                    }
+                }
+            })
+        }, 1000)
+    }
+}
+</script>
+
+<style>
+.titlebar {
+    width: 55%;
+    margin-top: 45px;
+    align-items: center;
+}
+
+.titlebar-text {
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+}
+
+.play-page {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    height: 100%;
+    position: absolute;
+    width: 100%;
+}
+</style>

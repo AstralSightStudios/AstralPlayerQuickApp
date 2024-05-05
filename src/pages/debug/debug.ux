@@ -18,6 +18,7 @@
         <input type="button" value="直进decoder.ux" style="margin-top: 20px; width: 400px" @click="RouterDecoder()"></input>
         <input type="button" value="直进download.ux" style="margin-top: 20px; width: 400px" @click="RouterDownload()"></input>
         <input type="button" value="写任意dec到play" style="margin-top: 20px; width: 400px" @click="WriteDecToPlay()"></input>
+        <input type="button" value="播放测试音频" style="margin-top: 20px; width: 400px" @click="PlayTestAudio()"></input>
         <text style="margin-top: 20px;"> </text>
     </div>
 </template>
@@ -30,6 +31,11 @@ import prompt from '@system.prompt'
     RouterBack(){
         console.log("clicked")
         router.back()
+    },
+    PlayTestAudio(){
+        prompt.showToast({
+            message: "该功能已禁用"
+        })
     },
     WriteDecToPlay(){
         file.list({

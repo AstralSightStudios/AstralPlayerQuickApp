@@ -17,10 +17,27 @@ export default{
       text: "wait_copy",
       success: () => {
         console.log("ok")
+        prompt.showToast({
+          message: "初始化完毕",
+          duration: 6000
+        })
       },
       fail: (data,code) => {
         prompt.showToast({
           message: "初始化快应用失败，表盘将无法检测到该快应用的存在，请检查设备兼容性",
+          duration: 6000
+        })
+      }
+    })
+    file.writeText({
+      uri: 'internal://files/playaudionow',
+      text: "WAIT",
+      success: () => {
+        console.log("ok init playaudionow")
+      },
+      fail: (data,code) => {
+        prompt.showToast({
+          message: "初始化通信文件失败！！！",
           duration: 6000
         })
       }

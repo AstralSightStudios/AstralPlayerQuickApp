@@ -8,7 +8,7 @@
         </div>
     </div>
 
-    <div class="feature" style="margin-top: 20px">
+    <div class="feature" style="margin-top: 20px" @click="GoList">
         <image class="feature_img" src="/common/icons8-play-button-circled-100.png"></image>
         <div class="feature-text">
             <text class="feature-text-content">管理视频</text>
@@ -36,6 +36,11 @@ import storage from "@system.storage"
     GoSettings(){
         router.push({
             uri: "pages/settings"
+        })
+    },
+    GoList(){
+        router.push({
+            uri: "pages/vidlist"
         })
     },
     async GoDecoder(){

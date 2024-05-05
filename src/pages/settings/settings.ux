@@ -14,7 +14,7 @@
             <text style="font-size: 30px; font-weight: bold">退出登录</text>
         </div>
     </div>
-    <div class="item" style="margin-top: 20px;">
+    <div class="item" style="margin-top: 20px;" @click="RemoveALL()">
         <image src="/common/RemoveALL.png" class="item-img"></image>
         <div class="item-text">
             <text style="font-size: 30px; font-weight: bold; color: #FC5C5C">删除所有视频</text>
@@ -52,6 +52,11 @@ import prompt from "@system.prompt"
     GoDebug(){
         router.push({
             uri: 'pages/debug'
+        })
+    },
+    RemoveALL(){
+        prompt.showToast({
+            message: "暂不支持该功能"
         })
     },
     Logout(){
