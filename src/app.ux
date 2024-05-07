@@ -2,7 +2,8 @@
 import * as _base64 from "./base64"
 export default {
   base64: _base64,
-  ServerURL: "https://localdebugapi-player.astralsight.space/",
+  ServerURL: "https://localdebugapi-player.astralsight.space/", //测试环境
+  //ServerURL: "https://astralplayerapi.astralsight.space/", //生产环境
   onCreate() {
     console.log("app created")
   },

@@ -21,6 +21,8 @@ import fetch from "@system.fetch"
 import storage from "@system.storage"
 import file from "@system.file"
 import request from "@system.request"
+import prompt from "@system.prompt"
+import { systemPromptEnabled } from "@system.shortcut"
  export default {
     public: {
         decode_token: "91200ccc-80de-45d8-8105-6cb55c9381a2",
@@ -46,7 +48,8 @@ import request from "@system.request"
         // 主要防止有小傻逼拉slider导致值更改
         view_downloaded_frames: 0,
         downloaded_frames: 0,
-        frames_to_download: 100,
+        frames_to_download: 0,
+        audiosplit_count: 0,
         // 是否显示下载帧数量以及需要下载的帧数量（即 1/100 这种）
         show_down_num: true,
         // 这个你自己能看懂
@@ -152,107 +155,115 @@ import request from "@system.request"
                 console.error('下载过程中出现错误:', error);
             });
         },
+        async downloadAudioFiles(down_url, totalSplits, decode_token) {
+            let activeDownloads = 0;
+            const concurrentLimit = 1; // 同时下载的最大数量限制
+            const downloadPromises = [];
+
+            for (let SplitNumber = 1; SplitNumber <= totalSplits; SplitNumber++) {
+                if (activeDownloads < concurrentLimit) {
+                    const fetchurl = down_url + "output_audio.mp3_" + SplitNumber + ".mp3split";
+                    const downloadPromise = new Promise((resolve, reject) => {
+                        request.download({
+                            url: fetchurl,
+                            success: (down_data) => {
+                                request.onDownloadComplete({
+                                    token: down_data.token,
+                                    success: (uri_data) => {
+                                        file.readText({
+                                            uri: uri_data.uri,
+                                            success: (read_data) => {
+                                                try {
+                                                    console.log("BEGIN PARSE TO UINT8ARRAY");
+                                                    const arraybuffer_write = this.base64ToUint8Array(read_data.text);
+                                                    console.log("BEGIN WRITE ARRAYBUFFER");
+                                                    file.writeArrayBuffer({
+                                                        uri: `internal://files/vid/${decode_token}/output_audio.mp3`,
+                                                        buffer: arraybuffer_write,
+                                                        append: true,
+                                                        success: () => {
+                                                            file.delete({
+                                                                uri: uri_data.uri,
+                                                                success: () => {
+                                                                    this.downloaded_frames ++;
+                                                                    this.view_downloaded_frames = this.downloaded_frames
+                                                                    resolve()
+                                                                },
+                                                                fail: (data, code) => reject(new Error(`删除音频缓存时出错: ${data} 错误代码：${code}`))
+                                                            });
+                                                        },
+                                                        fail: (data, code) => reject(new Error(`写入音频arraybuffer时出错: ${data} 错误代码：${code}`))
+                                                    });
+                                                } catch (ex) {
+                                                    console.error("ERROR When Readtext: " + ex);
+                                                    reject(new Error("处理base64数据时出错: " + ex));
+                                                }
+                                            },
+                                            fail: (data, code) => reject(new Error(`读取音频base64时出错: ${data} 错误代码：${code}`))
+                                        });
+                                    },
+                                    fail: (data, code) => reject(new Error(`监听音频下载状态时出错: ${data} 错误代码：${code}`))
+                                });
+                            },
+                            fail: (data, code) => reject(new Error(`创建音频下载任务时出错: ${data} 错误代码：${code}`))
+                        });
+                    }).finally(() => {
+                        activeDownloads--; // 确保无论成功或失败，都适时减少活跃下载数
+                    });
+
+                    activeDownloads++; // 增加活跃下载数
+                    downloadPromises.push(downloadPromise);
+                } else {
+                    await new Promise(resolve => setTimeout(resolve, 100)); // 等待100毫秒
+                    SplitNumber--; // 重试当前帧
+                }
+            }
+
+            // 等待所有下载任务完成
+            await Promise.all(downloadPromises).then(() => {
+                console.log('所有下载已完成');
+                file.get({
+                    uri: `internal://files/vid/${decode_token}/output_audio.mp3`,
+                    success: (getdata) => {
+                        prompt.showToast({
+                            message: "音频文件大小：" + getdata.length
+                        })
+                    }
+                })
+                setTimeout(() => {
+                    router.replace({
+                    uri: "pages/success",
+                    params: {
+                        TitleBarText: "下载完毕",
+                        TipsText: "视频已下载完毕！\n请返回主页，在“音频管理”中即可播放！"
+                    }
+                }, 2000);
+            })
+
+            }).catch(error => {
+                console.error('下载过程中出现错误:', error);
+                router.replace({
+                    uri: "pages/error",
+                    params: {
+                        TitleBarText: "下载失败",
+                        ErrorText: "在下载过程中发生错误：" + error.message
+                    }
+                });
+            });
+        },
 
         async onAllDownloadsComplete(down_url) {
             // 这里定义下载完成后想要执行的操作
             console.log('All downloads are successfully completed. Proceeding with post-download operations.');
 
-            // 隐藏下载帧数显示
-            // 由于fetch不支持显示进度，因此音频下载也没法显示进度
-            this.show_down_num = false
-            this.down_tips_text = "正在下载音频..."
+            this.down_tips_text = "正在下载音频切片"
+
+            this.downloaded_frames = 0
+            this.view_downloaded_frames = 0
+            this.frames_to_download = this.audiosplit_count
 
             // 下载并保存音频
-            const fetchurl = down_url + "output_audio.mp3";
-            request.download({
-                url: fetchurl,
-                success: (down_data) => {
-                    request.onDownloadComplete({
-                        token: down_data.token,
-                        success: (uri_data) => {
-                            file.readText({
-                                uri: uri_data.uri,
-                                success: (read_data) => {
-                                    try{
-                                        console.log("BEGIN PARSE TO UINT8ARRAY")
-                                        const arraybuffer_write = this.base64ToUint8Array(read_data.text);
-                                        console.log("BEGIN WRITE ARRAYBUFFER")
-                                        file.writeArrayBuffer({
-                                            uri: `internal://files/vid/${this.decode_token}/output_audio.mp3`,
-                                            buffer: arraybuffer_write,
-                                            success: () => {
-                                                file.delete({
-                                                    uri: uri_data.uri,
-                                                    success: () => {
-                                                        router.replace({
-                                                            uri: "pages/success",
-                                                            params: {
-                                                                TitleBarText: "下载完毕",
-                                                                TipsText: "视频已下载完毕！\n请返回主页，在“视频管理”中即可播放！"
-                                                            }
-                                                        })
-                                                    },
-                                                    fail: (data, code) => {
-                                                        router.replace({
-                                                            uri: "pages/error",
-                                                            params: {
-                                                                TitleBarText: "下载失败",
-                                                                ErrorText: "删除音频缓存时出错\n错误信息：" + data + " 错误代码：" + code
-                                                            }
-                                                        })
-                                                    }
-                                                })
-                                            },
-                                            fail: (data, code) => {
-                                                router.replace({
-                                                    uri: "pages/error",
-                                                    params: {
-                                                        TitleBarText: "下载失败",
-                                                        ErrorText: "写入音频arraybuffer时出错\n错误信息：" + data + " 错误代码：" + code
-                                                    }
-                                                })
-                                            }
-                                        });
-                                    }
-                                    catch(ex){
-                                        console.error("ERROR When Readtext: " + ex)
-                                    }
-                                },
-                                fail: function(data, code) {
-                                    console.log(`handling fail, code = ${code}`)
-                                    router.replace({
-                                        uri: "pages/error",
-                                        params: {
-                                            TitleBarText: "下载失败",
-                                            ErrorText: "读取音频base64时出错\n错误信息：" + data + " 错误代码：" + code
-                                        }
-                                    })
-                                }
-                            })
-                        },
-                        fail: (data, code) => {
-                            // 报错直接丢error页，不多逼逼
-                            router.replace({
-                                uri: "pages/error",
-                                params: {
-                                    TitleBarText: "下载失败",
-                                    ErrorText: "监听音频下载状态时出错\n错误信息：" + data + " 错误代码：" + code
-                                }
-                            })
-                        }
-                    })
-                },
-                fail: (data, code) => {
-                    // 报错直接丢error页，不多逼逼
-                    router.replace({
-                        uri: "pages/error",
-                        params: {
-                            TitleBarText: "下载失败",
-                            ErrorText: "创建音频下载任务时出错\n错误信息：" + data + " 错误代码：" + code
-                        }
-                    })
-                }
-            })
+            await this.downloadAudioFiles(down_url, this.audiosplit_count, this.decode_token)
         }
     },
     RouterBack() {
@@ -314,7 +325,9 @@ import request from "@system.request"
                             }
 
                             var frame_count = data.data.data.frame
+                            var audiosplits_count = data.data.data.audiosplit
                             this.frames_to_download = frame_count
+                            this.audiosplit_count = audiosplits_count
                             var down_url = data.data.data.url
 
                             console.log("begin mkdir")

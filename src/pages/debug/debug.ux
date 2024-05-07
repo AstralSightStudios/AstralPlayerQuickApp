@@ -12,6 +12,8 @@
         <input type="button" value="释放测试清单12FPS" style="margin-top: 20px; width: 400px" @click="TestManifest()"></input>
         <input type="button" value="释放测试清单8FPS" style="margin-top: 20px; width: 400px" @click="TestManifest8FPS()"></input>
         <input type="button" value="临时番剧OP清单10FPS" style="margin-top: 20px; width: 400px" @click="TmpManiFest10FPS()"></input>
+        <input type="button" value="游戏实况4FPS" style="margin-top: 20px; width: 400px" @click="TmpGame4FPS()"></input>
+        <input type="button" value="游戏实况8FPS" style="margin-top: 20px; width: 400px" @click="TmpGame8FPS()"></input>
         <input type="button" value="删除installed与play" style="margin-top: 20px; width: 400px"
             @click="RemoveInstalledAndPlay()"></input>
         <input type="button" value="模拟复制测试清单" style="margin-top: 20px; width: 400px" @click="CopyTestManifest()"></input>
@@ -198,6 +200,44 @@ import prompt from '@system.prompt'
             video_title: "测试视频",
             video_url: "https://github.com/Searchstars/searchstars/releases/download/test-1/testvid.mp4",
             require_fps: 10,
+            require_format: "jpg",
+            require_res_width: 480,
+            require_res_height: 320
+        }
+        file.writeText({
+            uri: "internal://files/testVidaaas.asplayerlist",
+            text: JSON.stringify(mfJson),
+            success: () => {
+                prompt.showToast({
+                    message: "释放成功"
+                })
+            }
+        })
+    },
+    TmpGame4FPS(){
+        var mfJson = {
+            video_title: "测试实况4FPS",
+            video_url: "https://github.com/AstralSightStudios/AstralPlayerQuickApp/releases/download/test-vid/video.mp4",
+            require_fps: 4,
+            require_format: "jpg",
+            require_res_width: 480,
+            require_res_height: 320
+        }
+        file.writeText({
+            uri: "internal://files/testVidaaas.asplayerlist",
+            text: JSON.stringify(mfJson),
+            success: () => {
+                prompt.showToast({
+                    message: "释放成功"
+                })
+            }
+        })
+    },
+    TmpGame8FPS(){
+        var mfJson = {
+            video_title: "测试实况8FPS",
+            video_url: "https://github.com/AstralSightStudios/AstralPlayerQuickApp/releases/download/test-vid/video.mp4",
+            require_fps: 8,
             require_format: "jpg",
             require_res_width: 480,
             require_res_height: 320
